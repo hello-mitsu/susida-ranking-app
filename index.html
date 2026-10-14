@@ -206,7 +206,7 @@
 
 <script>
     // ⚙️【設定完了】あなた専用のSupabase接続キー
-    const SUPABASE_URL = "https://krcmiwpzgzectdqzaprr.supabase.co"; 
+    const SUPABASE_URL = "https://supabase.co"; 
     const SUPABASE_ANON_KEY = "sb_publishable_2fEfTpVCOFx2-y4b8HEzCw_Bd9HyrYB";
 
     // 接続の開始
@@ -220,7 +220,7 @@
     document.getElementById('score-image').addEventListener('change', function(e) {
         var files = e.target.files;
         if (!files || files.length === 0) return;
-        selectedFile = files[0]; // 1枚目のファイルを正確に取得
+        selectedFile = files[0]; // 配列バグを完全に回避
 
         var reader = new FileReader();
         reader.onload = function(event) {
@@ -297,7 +297,7 @@
     }
 
     // 🚀 スコア登録・クラウド送信
-document.getElementById('submit-score').addEventListener('click', async function() {
+    document.getElementById('submit-score').addEventListener('click', async function() {
 var name = document.getElementById('player-name').value.trim();
 var amount = parseInt(document.getElementById('score-amount').value, 10);
 var keys = parseInt(document.getElementById('score-keys').value, 10);
