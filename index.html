@@ -1,25 +1,11 @@
 <!DOCTYPE html>
-<html>
-
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>JSFiddle 0tw4o7gy</title>
-
-  <style>
-    
-  </style>
-
-  
-</head>
-<body>
-  <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>寿司打コミュニティランキング</title>
+    <!-- Supabaseと通信するための公式ライブラリの読み込み -->
+    <script src="https://jsdelivr.net"></script>
     <style>
         :root {
             --primary-color: #e63946;
@@ -102,6 +88,10 @@
             cursor: pointer;
             font-weight: bold;
         }
+        .submit-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -116,7 +106,6 @@
         .score-plus { color: #2a9d8f; font-weight: bold; }
         .score-minus { color: #e63946; font-weight: bold; }
         
-        /* 証拠画像リンク・プレビューのスタイル */
         .evidence-link {
             color: #2a9d8f;
             text-decoration: underline;
@@ -130,7 +119,6 @@
             border-radius: 5px;
             display: none;
         }
-        /* モーダルウィンドウ（拡大画像表示用） */
         .modal {
             display: none;
             position: fixed;
@@ -171,7 +159,6 @@
     </div>
 
     <div class="main-layout">
-        <!-- スコア登録フォーム -->
         <div class="card">
             <h2>スコアを登録</h2>
             <div class="form-group">
@@ -187,14 +174,13 @@
                 <input type="number" id="score-keys" placeholder="例: 350">
             </div>
             <div class="form-group">
-                <label>結果のスクリーンショット（証拠画像）</label>
+                <label>結果のスクリーンショット（証拠画像・任意）</label>
                 <input type="file" id="score-image" accept="image/*">
-                <img id="form-preview" class="preview-img" alt="アップロード予告">
+                <img id="form-preview" class="preview-img" alt="プレビュー">
             </div>
             <button class="submit-btn" id="submit-score">ランキングに登録する</button>
         </div>
 
-        <!-- ランキング表示エリア -->
         <div class="card">
             <h2>現在のランキング (<span id="current-view-title">普通 - 3000円コース</span>)</h2>
             <table>
@@ -213,144 +199,171 @@
     </div>
 </div>
 
-<!-- 画像拡大用の空気ポップアップ（モーダル） -->
 <div id="image-modal" class="modal">
     <span class="modal-close" id="modal-close">&times;</span>
     <img class="modal-content" id="modal-target-img">
 </div>
 
 <script>
+    // ⚙️【重要】あなたのSupabaseの鍵をここに正しく貼り付けてください
+    const SUPABASE_URL = "https://supabase.co"; 
+    const SUPABASE_ANON_KEY = "あなたの非常に長いanon鍵";
+
+    // Supabaseクライアントの初期化
+    const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
     var currentMode = 'normal';
     var currentCourse = '3000';
-    var rankingData = JSON.parse(localStorage.getItem('sushida_rankings')) || {};
-    var currentBase64Image = ""; // 画像データを一時保存する変数
+    var selectedFile = null;
 
-    // フォームで画像が選ばれた時のプレビュー処理
+    // 画像選択時の処理
     document.getElementById('score-image').addEventListener('change', function(e) {
-        var file = e.target.files[0];
-        if (!file) return;
+        var files = e.target.files;
+        if (!files || files.length === 0) return;
+        selectedFile = files[0];
 
         var reader = new FileReader();
         reader.onload = function(event) {
-            currentBase64Image = event.target.result; // 画像をテキストデータ化
             var preview = document.getElementById('form-preview');
-            preview.src = currentBase64Image;
+            preview.src = event.target.result;
             preview.style.display = 'block';
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(selectedFile);
     });
 
-    // モード切り替え
+    // タブ切り替えイベント
     var modeButtons = document.querySelectorAll('#mode-tabs .tab-btn');
     modeButtons.forEach(function(btn) {
         btn.addEventListener('click', function() {
             modeButtons.forEach(function(b) { b.classList.remove('active'); });
             btn.classList.add('active');
             currentMode = btn.getAttribute('data-mode');
-            updateView();
+            fetchRankings();
         });
     });
 
-    // コース切り替え
     var courseButtons = document.querySelectorAll('#course-tabs .tab-btn');
     courseButtons.forEach(function(btn) {
         btn.addEventListener('click', function() {
             courseButtons.forEach(function(b) { b.classList.remove('active'); });
             btn.classList.add('active');
             currentCourse = btn.getAttribute('data-course');
-            updateView();
+            fetchRankings();
         });
     });
 
-    function updateView() {
+    // 🌐 データベースから最新のランキングを読み込む処理
+    async function fetchRankings() {
         var modeLabels = { normal: '普通', practice: '練習', sudden: '一発勝負' };
         document.getElementById('current-view-title').textContent = modeLabels[currentMode] + ' - ' + currentCourse + '円コース';
         
         var tbody = document.getElementById('ranking-tbody');
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#999;">データを読み込み中...</td></tr>';
+
+        // データベースから現在のモードとコースに一致するデータを取得（金額順、キー数順に自動ソート）
+        const { data, error } = await supabase
+            .from('sushida_rankings')
+            .select('*')
+            .eq('mode', currentMode)
+            .eq('course', currentCourse)
+            .order('amount', { ascending: false })
+            .order('keys', { ascending: false });
+
+        if (error) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">読み込み失敗しました。鍵が正しいか確認してください。</td></tr>';
+            return;
+        }
+
         tbody.innerHTML = '';
-
-        var key = currentMode + '_' + currentCourse;
-        var currentRankings = rankingData[key] || [];
-
-        currentRankings.sort(function(a, b) {
-            return b.amount - a.amount || b.keys - a.keys;
-        });
-
-        if (currentRankings.length === 0) {
+        if (data.length === 0) {
             tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#999;">データがありません。</td></tr>';
             return;
         }
 
-        currentRankings.forEach(function(player, index) {
+        data.forEach(function(player, index) {
             var tr = document.createElement('tr');
             var rank = index + 1;
             
-            var amountDisplay = '';
-            if (player.amount >= 0) {
-                amountDisplay = '<span class="score-plus">¥' + player.amount + ' お得</span>';
-            } else {
-                amountDisplay = '<span class="score-minus">¥' + Math.abs(player.amount) + ' 損</span>';
-            }
+            var amountDisplay = player.amount >= 0 
+                ? '<span class="score-plus">¥' + player.amount + ' お得</span>'
+                : '<span class="score-minus">¥' + Math.abs(player.amount) + ' 損</span>';
 
-            // 画像がある場合はリンクを表示、ない場合は「なし」
-            var evidenceDisplay = 'なし';
-            if (player.image) {
-                evidenceDisplay = '<span class="evidence-link" onclick="openModal(\'' + player.name + '\', \'' + key + '\')">📄 見る</span>';
-            }
+            var evidenceDisplay = player.image_url 
+                ? '<span class="evidence-link" onclick="openModal(\'' + player.image_url + '\')">📄 見る</span>'
+                : 'なし';
 
             tr.innerHTML = '<td>' + rank + '</td><td><strong>' + player.name + '</strong></td><td>' + amountDisplay + '</td><td>' + player.keys + ' 回</td><td>' + evidenceDisplay + '</td>';
             tbody.appendChild(tr);
         });
     }
 
-    // 登録処理
-    document.getElementById('submit-score').addEventListener('click', function() {
-        var name = document.getElementById('player-name').value.trim();
-        var amount = parseInt(document.getElementById('score-amount').value, 10);
-        var keys = parseInt(document.getElementById('score-keys').value, 10);
-
-        if (!name || isNaN(amount) || isNaN(keys)) {
-            alert('すべて正しく入力してください。');
-            return;
-        }
-
-        var key = currentMode + '_' + currentCourse;
-if (!rankingData[key]) rankingData[key] = [];
-var scoreEntry = { name: name, amount: amount, keys: keys, image: currentBase64Image };
-var existingIndex = rankingData[key].findIndex(function(p) { return p.name === name; });
-if (existingIndex !== -1) {
-if (amount > rankingData[key][existingIndex].amount) {
-rankingData[key][existingIndex] = scoreEntry;
-} else {
-alert('ベストスコアを下回っているため更新されませんでした。');
+    // 🚀 登録ボタンを押した時のデータベース送信処理
+document.getElementById('submit-score').addEventListener('click', async function() {
+var name = document.getElementById('player-name').value.trim();
+var amount = parseInt(document.getElementById('score-amount').value, 10);
+var keys = parseInt(document.getElementById('score-keys').value, 10);
+var submitBtn = document.getElementById('submit-score');
+if (!name || isNaN(amount) || isNaN(keys)) {
+alert('すべて正しく入力してください。');
 return;
 }
+submitBtn.disabled = true;
+submitBtn.textContent = "送信中...";
+var imageUrl = null;
+// 画像が選択されていれば、Supabaseのクラウド保管庫（Storage）へ高速アップロード
+if (selectedFile) {
+const fileName = Date.now() + "_" + selectedFile.name;
+const { data: storageData, error: storageError } = await supabase
+.storage
+.from('evidence')
+.upload(fileName, selectedFile);
+if (storageError) {
+alert("画像の送信に失敗しました。画像なしで処理を続行します。");
 } else {
-rankingData[key].push(scoreEntry);
+const { data: urlData } = supabase.storage.from('evidence').getPublicUrl(fileName);
+imageUrl = urlData.publicUrl;
 }
-try {
-localStorage.setItem('sushida_rankings', JSON.stringify(rankingData));
-} catch (e) {
-alert('画像のデータが大きすぎるため保存できませんでした。画質を落とすか、小さめのスクショ画像を選択してください。');
-return;
 }
-updateView();
+// 過去に同じ名前のデータがあるかチェック
+const { data: existingData } = await supabase
+.from('sushida_rankings')
+.select('*')
+.eq('mode', currentMode)
+.eq('course', currentCourse)
+.eq('name', name)
+.maybeSingle();
+if (existingData) {
+if (amount > existingData.amount) {
+// 自己ベスト更新なら上書き（アップデート）
+await supabase
+.from('sushida_rankings')
+.update({ amount: amount, keys: keys, image_url: imageUrl || existingData.image_url })
+.eq('id', existingData.id);
+alert('自己ベストを更新しました！');
+} else {
+alert('過去の自己ベストを下回っているため更新されませんでした。');
+}
+} else {
+// 新規プレイヤーなら新しくデータ追加（インサート）
+await supabase
+.from('sushida_rankings')
+.insert([{ mode: currentMode, course: currentCourse, name: name, amount: amount, keys: keys, image_url: imageUrl }]);
+alert('ランキングに登録されました！');
+}
 // フォームリセット
 document.getElementById('score-amount').value = '';
 document.getElementById('score-keys').value = '';
 document.getElementById('score-image').value = '';
 document.getElementById('form-preview').style.display = 'none';
-currentBase64Image = "";
-alert('登録されました！');
+selectedFile = null;
+submitBtn.disabled = false;
+submitBtn.textContent = "ランキングに登録する";
+fetchRankings();
 });
-// 🔍 画像をポップアップで拡大表示する処理
-window.openModal = function(name, key) {
-var players = rankingData[key] || [];
-var player = players.find(function(p) { return p.name === name; });
-if (player && player.image) {
-document.getElementById('modal-target-img').src = player.image;
+// モーダルポップアップの画像拡大処理
+window.openModal = function(url) {
+document.getElementById('modal-target-img').src = url;
 document.getElementById('image-modal').style.display = 'flex';
-}
 };
 document.getElementById('modal-close').addEventListener('click', function() {
 document.getElementById('image-modal').style.display = 'none';
@@ -360,7 +373,8 @@ if(e.target.id === "image-modal") {
 document.getElementById('image-modal').style.display = 'none';
 }
 });
-updateView();
+// 起動時に自動でデータを読み込み
+fetchRankings();
 </script>
 
 </body>
