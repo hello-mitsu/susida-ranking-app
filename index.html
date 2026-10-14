@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>寿司打コミュニティランキング</title>
+    <style>
+        :root {
+            --primary-color: #e63946;
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --text-color: #333333;
+        }
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 30px;
+        }
+        /* タブのスタイル */
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .tab-btn {
+            padding: 10px 20px;
+            border: 2px solid #ccc;
+            background: #fff;
+            cursor: pointer;
+            border-radius: 25px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .tab-btn.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        /* フォーム・メインレイアウト */
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+        @media(min-width: 768px) {
+            .main-layout { grid-template-columns: 1fr 2fr; }
+        }
+        .card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button.submit-btn {
+            width: 100%;
+            padding: 12px;
+            background: #2a9d8f;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        /* ランキングテーブル */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th { background-color: #f1f1f1; }
+        /* プレビュー画像 */
+        #preview-container {
+            margin-top: 10px;
+            display: none;
+            text-align: center;
+        }
+        #preview-image {
+            max-width: 100%;
+            max-height: 200px;
+            border: 2px dashed #ccc;
+            border-radius: 5px;
+        }
+        .guide-text {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🍣 寿司打 コミュニティランキング 🍣</h1>
+
+    <!-- 項目（モード）切り替えタブ -->
+    <div class="tabs" id="mode-tabs">
+        <button class="tab-btn active" data-mode="normal">普通</button>
+        <button class="tab-btn" data-mode="practice">練習</button>
+        <button class="tab-btn" data-mode="sudden">一発勝負</button>
+    </div>
+
+    <!-- コース切り替えタブ -->
+    <div class="tabs" id="course-tabs">
+        <button class="tab-btn active" data-course="3000">3,000円コース</button>
+        <button class="tab-btn" data-course="5000">5,000円コース</button>
+        <button class="tab-btn" data-course="10000">10,000円コース</button>
+    </div>
+
+    <div class="main-layout">
+        <!-- スコア登録フォーム -->
+        <div class="card">
+            <h2>スコアを登録</h2>
+            <div class="form-group">
+                <label>1. 結果スクショを添付（証拠用・任意）</label>
+                <input type="file" id="screenshot-input" accept="image/*">
+                <div id="preview-container">
+                    <div class="guide-text">👇画像を見ながら下の数字を入力してください</div>
+                    <img id="preview-image" src="" alt="スクショプレビュー">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>お名前</label>
+                <input type="text" id="player-name" placeholder="お名前を入力" required>
+            </div>
+            <div class="form-group">
+                <label>お得になった金額 (円)</label>
+                <input type="number" id="score-amount" placeholder="例: 1240" required>
+            </div>
+            <div class="form-group">
+                <label>正しく打ったキーの数 (回)</label>
+                <input type="number" id="score-keys" placeholder="例: 350" required>
+            </div>
+            <button class="submit-btn" id="submit-score">ランキングに登録する</button>
+        </div>
+
+        <!-- ランキング表示エリア -->
+        <div class="card">
+            <h2>現在のランキング (<span id="current-view-title">普通 - 3,000円コース</span>)</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 15%">順位</th>
+                        <th style="width: 35%">名前</th>
+                        <th style="width: 25%">お得度</th>
+                        <th style="width: 25%">正しく打ったキー</th>
+                    </tr>
+                </thead>
+                <tbody id="ranking-tbody">
+                    <!-- データ挿入エリア -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentMode = 'normal';
+    let currentCourse = '3000';
+
+    // 擬似データベース（ブラウザに保存）
+    let rankingData = JSON.parse(localStorage.getItem('sushida_rankings')) || {};
+
+    // タブの切り替え
+    document.getElementById('mode-tabs').addEventListener('click', (e) => {
+        if (!e.target.classList.contains('tab-btn')) return;
+        document.querySelectorAll('#mode-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        currentMode = e.target.dataset.mode;
+        updateView();
+    });
+
+    document.getElementById('course-tabs').addEventListener('click', (e) => {
+        if (!e.target.classList.contains('tab-btn')) return;
+        document.querySelectorAll('#course-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        currentCourse = e.target.dataset.course;
+        updateView();
+    });
+
+    // 画面の更新
+    function updateView() {
+        const modeLabels = { normal: '普通', practice: '練習', sudden: '一発勝負' };
+        document.getElementById('current-view-title').textContent = `${modeLabels[currentMode]} - ${Number(currentCourse).toLocaleString()}円コース`;
+        
+        const tbody = document.getElementById('ranking-tbody');
+        tbody.innerHTML = '';
+
+        const key = `${currentMode}_${currentCourse}`;
+        const currentRankings = rankingData[key] || [];
+
+        // お得になった金額順（同点ならキー数順）
+        currentRankings.sort((a, b) => b.amount - a.amount || b.keys - a.keys);
+
+        if (currentRankings.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#999;">まだデータがありません。最初の登録者になろう！</td></tr>`;
+            return;
+        }
+
+        currentRankings.forEach((player, index) => {
+            const tr = document.createElement('tr');
+            let medal = index + 1;
+            if (index === 0) medal = '🥇';
+            if (index === 1) medal = '🥈';
+            if (index === 2) medal = '🥉';
+
+            tr.innerHTML = `
+                <td>${medal}</td>
+                <td><strong>${escapeHtml(player.name)}</strong></td>
+                <td>¥${Number(player.amount).toLocaleString()} お得</td>
+                <td>${Number(player.keys).toLocaleString()} 回</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // 画像が選ばれたらプレビュー表示する（バグ修正済：file[0]を指定）
+    document.getElementById('screenshot-input').addEventListener('change', function(e) {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const img = document.getElementById('preview-image');
+            img.src = event.target.result;
+            document.getElementById('preview-container').style.display = 'block';
+        };
+        reader.readAsDataURL(files[0]);
+    });
+
+    // スコアの登録
+    document.getElementById('submit-score').addEventListener('click', () => {
+        const name = document.getElementById('player-name').value.trim();
+        const amount = parseInt(document.getElementById('score-amount').value);
+        const keys = parseInt(document.getElementById('score-keys').value);
+
+        if (!name || isNaN(amount) || isNaN(keys)) {
+            alert('お名前、金額、キー数をすべて正しく入力してください。');
+            return;
+        }
+
+        const key = `${currentMode}_${currentCourse}`;
+        if (!rankingData[key]) rankingData[key] = [];
+
+        const existingPlayerIndex = rankingData[key].findIndex(p => p.name === name);
+        if (existingPlayerIndex !== -1) {
+            if (amount > rankingData[key][existingPlayerIndex].amount) {
+                rankingData[key][existingPlayerIndex] = { name, amount, keys };
+            } else {
+                alert('過去の自己ベストを下回っているため、ランキングは更新されませんでした！');
+                return;
+            }
+        } else {
+            rankingData[key].push({ name, amount, keys });
+        }
+
+        localStorage.setItem('sushida_rankings', JSON.stringify(rankingData));
+        updateView();
+
+        // フォームのリセット
+        document.getElementById('score-amount').value = '';
+        document.getElementById('score-keys').value = '';
+        document.getElementById('screenshot-input').value = '';
+document.getElementById('preview-container').style.display = 'none';
+alert('ランキングに登録されました！');
+});
+function escapeHtml(str) {
+return str.replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>').replace(/"/g, '"').replace(/'/g, ''');
+}
+updateView();
